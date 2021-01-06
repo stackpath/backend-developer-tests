@@ -23,6 +23,7 @@ func (suite FizzBuzzSuite) TestFizzFuzz() {
 		buzzIndex      int
 		expect         []string
 		shouldFizzBuzz bool
+		noElem         bool
 	}{
 		{
 			total:     5,
@@ -46,19 +47,30 @@ func (suite FizzBuzzSuite) TestFizzFuzz() {
 			buzzIndex:      1,
 			shouldFizzBuzz: true,
 		},
+		{
+			total:     0,
+			fizzAt:    0,
+			fizzIndex: 0,
+			buzzAt:    0,
+			buzzIndex: 0,
+			noElem:    true,
+		},
 	}
 
 	for i, c := range cases {
 		result := FizzBuzz(c.total, c.fizzAt, c.buzzAt)
 
-		if c.shouldFizzBuzz {
-			suite.Equal(result[c.fizzIndex], "FizzBuzz", "Test case #%d", i)
-			suite.Equal(result[c.buzzIndex], "FizzBuzz", "Test case #%d", i)
+		if c.noElem {
+			suite.Equal(len(result), 0)
 		} else {
-			suite.Equal(result[c.fizzIndex], "Fizz", "Test case #%d", i)
-			suite.Equal(result[c.buzzIndex], "Buzz", "Test case #%d", i)
+			if c.shouldFizzBuzz {
+				suite.Equal(result[c.fizzIndex], "FizzBuzz", "Test case #%d", i)
+				suite.Equal(result[c.buzzIndex], "FizzBuzz", "Test case #%d", i)
+			} else {
+				suite.Equal(result[c.fizzIndex], "Fizz", "Test case #%d", i)
+				suite.Equal(result[c.buzzIndex], "Buzz", "Test case #%d", i)
+			}
 		}
-
 		suite.Equal(int64(len(result)), c.total, "Test case #%d", i)
 
 	}
