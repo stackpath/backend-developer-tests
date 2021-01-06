@@ -26,7 +26,8 @@ func run(stdin io.Reader) {
 		2 concurrency is arbitrarily set to demonstrate goroutine buffering to
 		reserve control over system resources when input size is arbitrary.
 		Enables processing of more than 1 line concurrently, which can improve performance when
-		line length is very long.
+		line length is very long. There are, however issues related to max buffer size, and higher levels of
+		concurrency led to occational failures when reader slice became too large :(.
 	*/
 	concurrency := 2
 	sem := make(chan bool, concurrency)
