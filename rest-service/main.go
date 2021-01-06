@@ -1,12 +1,21 @@
 package main
 
 import (
-	"fmt"
+	"github.com/labstack/echo-contrib/prometheus"
+	"github.com/stackpath/backend-developer-tests/rest-service/pkg/logging"
+	"github.com/stackpath/backend-developer-tests/rest-service/pkg/router"
 )
 
 func main() {
-	fmt.Println("SP// Backend Developer Test - RESTful Service")
-	fmt.Println()
+	logging.InitLogger()
 
-	// TODO: Add RESTful web service here
+	logging.Logger.Info("SP// Backend Developer Test - RESTful Service")
+
+	r := router.NewRouter()
+
+	// Add prometheus middleware for metrics
+	p := prometheus.NewPrometheus("stackpathrest", nil)
+	p.Use(r)
+
+	r.Logger.Fatal(r.Start(":8080"))
 }
