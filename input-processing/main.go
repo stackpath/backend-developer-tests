@@ -21,7 +21,6 @@ func run(stdin io.Reader) {
 	 Read STDIN into a new buffered reader with 10mb size limit
 	*/
 	reader := bufio.NewReaderSize(stdin, 1024*1024*10)
-	// reader := bufio.NewReader(stdin)
 
 	/*
 		2 concurrency is arbitrarily set to demonstrate goroutine buffering to
