@@ -3,6 +3,7 @@ package concurrency
 import (
 	"context"
 	"errors"
+	"sync"
 )
 
 // ErrPoolClosed is returned from AdvancedPool.Submit when the pool is closed
@@ -30,11 +31,84 @@ type AdvancedPool interface {
 	Close(context.Context) error
 }
 
+type Job struct {
+	Exec func(context.Context)
+}
+
+type AdvancedPoolImpl struct {
+	runningWorkers chan bool
+	waitingWorkers chan Job
+	runningGroup   *sync.WaitGroup
+	poolCtx        context.Context
+	poolCloser     func()
+}
+
+func (api *AdvancedPoolImpl) Submit(ctx context.Context, exec func(context.Context)) error {
+	for {
+		select {
+		case api.waitingWorkers <- Job{exec}:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-api.poolCtx.Done():
+			return errors.New("ErrPoolClosed")
+		}
+	}
+}
+
+func (api *AdvancedPoolImpl) Close(ctx context.Context) error {
+	if api.poolCtx.Err() != nil {
+		return errors.New("ErrPoolClosed")
+	}
+	waitFinish := make(chan bool)
+	go func() {
+		api.runningGroup.Wait()
+		waitFinish <- true
+	}()
+
+	select {
+	case <-waitFinish:
+		close(api.waitingWorkers)
+		close(api.runningWorkers)
+		close(waitFinish)
+		api.poolCloser()
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (api *AdvancedPoolImpl) start() {
+	for {
+		select {
+		case api.runningWorkers <- true:
+			job := <-api.waitingWorkers
+			api.runningGroup.Add(1)
+			go func() {
+				defer api.runningGroup.Done()
+				job.Exec(context.WithValue(api.poolCtx, nil, nil))
+				<-api.runningWorkers
+			}()
+		}
+	}
+}
+
 // NewAdvancedPool creates a new AdvancedPool. maxSlots is the maximum total
 // submitted tasks, running or waiting, that can be submitted before Submit
 // blocks waiting for more room. maxConcurrent is the maximum tasks that can be
 // running at any one time. An error is returned if maxSlots is less than
 // maxConcurrent or if either value is not greater than zero.
 func NewAdvancedPool(maxSlots, maxConcurrent int) (AdvancedPool, error) {
-	panic("TODO")
+	if maxSlots < maxConcurrent || maxSlots < 0 || maxConcurrent < 0 {
+		return nil, errors.New("Invalid maxSlots and maxConcurrent")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	api := &AdvancedPoolImpl{
+		make(chan bool, maxConcurrent),
+		make(chan Job, maxSlots),
+		&sync.WaitGroup{},
+		ctx,
+		cancel}
+	go api.start()
+	return api, nil
 }

@@ -11,9 +11,21 @@ type SimplePool interface {
 	Submit(func())
 }
 
+type SimplePoolImpl struct {
+	runningWorkers chan bool
+}
+
+func (spi *SimplePoolImpl) Submit(exec func()) {
+	spi.runningWorkers <- true // trying to add this to pool of running workers
+	go func() {
+		exec()
+		<-spi.runningWorkers
+	}()
+}
+
 // NewSimplePool creates a new SimplePool that only allows the given maximum
 // concurrent tasks to run at any one time. maxConcurrent must be greater than
 // zero.
 func NewSimplePool(maxConcurrent int) SimplePool {
-	panic("TODO")
+	return &SimplePoolImpl{make(chan bool, maxConcurrent)}
 }
