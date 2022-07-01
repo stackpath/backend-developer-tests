@@ -3,6 +3,9 @@ package concurrency
 import (
 	"context"
 	"errors"
+	"fmt"
+	"log"
+	"sync"
 )
 
 // ErrPoolClosed is returned from AdvancedPool.Submit when the pool is closed
@@ -30,11 +33,98 @@ type AdvancedPool interface {
 	Close(context.Context) error
 }
 
+// advancedPool implements AdvancedPool for managing
+// concurrent worker pools
+type advancedPool struct {
+	waitGroup sync.WaitGroup
+	jobs      chan func(context.Context)
+	jobClose  chan bool
+	jobDone   chan bool
+	jobCtx    context.Context
+	jobCancel context.CancelFunc
+	syncOnce  *sync.Once
+}
+
 // NewAdvancedPool creates a new AdvancedPool. maxSlots is the maximum total
 // submitted tasks, running or waiting, that can be submitted before Submit
 // blocks waiting for more room. maxConcurrent is the maximum tasks that can be
 // running at any one time. An error is returned if maxSlots is less than
 // maxConcurrent or if either value is not greater than zero.
 func NewAdvancedPool(maxSlots, maxConcurrent int) (AdvancedPool, error) {
-	panic("TODO")
+	if maxConcurrent < 1 {
+		return nil, fmt.Errorf("advanced_worker_pool: Failed init, maxConcurrent < 1")
+	}
+	if maxSlots < 1 {
+		return nil, fmt.Errorf("advanced_worker_pool: Failed init, maxSlots < 1")
+	}
+	if maxSlots < maxConcurrent {
+		return nil, fmt.Errorf("advanced_worker_pool: Failed init, maxSlots < maxConcurrent")
+	}
+
+	jobDone := make(chan bool)
+	jobClose := make(chan bool)
+	jobCtx, jobCancel := context.WithCancel(context.Background())
+	ap := &advancedPool{
+		waitGroup: sync.WaitGroup{},
+		jobs:      make(chan func(context.Context), maxSlots),
+		jobClose:  jobClose,
+		jobCtx:    jobCtx,
+		jobCancel: jobCancel,
+	}
+
+	func() {
+		defer close(jobDone)
+		ap.waitGroup.Wait()
+	}()
+
+	go func() {
+		defer jobCtx.Done()
+		<-jobClose
+	}()
+
+	// start workers
+	for i := 1; i <= maxConcurrent; i++ {
+		workerID := i
+		log.Printf("advanced_worker_pool: Worker %d is starting", workerID)
+		go ap.start(workerID)
+	}
+
+	return ap, nil
+}
+
+// Submit queues jobs for worker queue
+func (ap *advancedPool) Submit(ctx context.Context, job func(context.Context)) error {
+	select {
+	case ap.jobs <- job:
+		return nil
+	case <-ap.jobClose:
+		return ErrPoolClosed
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// Close pool
+func (ap *advancedPool) Close(ctx context.Context) error {
+	select {
+	case <-ap.jobDone:
+		ap.syncOnce.Do(func() {
+			close(ap.jobClose)
+		})
+		return nil
+	case <-ap.jobClose:
+		return ErrPoolClosed
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (ap *advancedPool) start(workerID int) {
+	for job := range ap.jobs {
+		log.Printf("advanced_worker_pool: Worker %d is busy", workerID)
+		ap.waitGroup.Add(1)
+		job(ap.jobCtx)
+		ap.waitGroup.Done()
+		log.Printf("advanced_worker_pool: Worker %d is done", workerID)
+	}
 }
