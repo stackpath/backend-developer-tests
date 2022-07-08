@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"strings"
 )
 
 func main() {
@@ -14,4 +15,13 @@ func main() {
 	reader := bufio.NewReader(os.Stdin)
 
 	// TODO: Look for lines in the STDIN reader that contain "error" and output them.
+
+	content, err := reader.ReadBytes('\n')
+
+	for err == nil {
+		if strings.Contains(string(content), "error") {
+			fmt.Println("STDOUT: ", string(content))
+		}
+		content, err = reader.ReadBytes('\n')
+	}
 }
