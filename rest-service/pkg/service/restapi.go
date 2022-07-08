@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -32,17 +33,22 @@ func GetAllPeople(c *gin.Context) {
 			c.IndentedJSON(http.StatusBadRequest, gin.H{"message": message})
 			return
 		}
+
 		c.IndentedJSON(http.StatusOK, models.FindPeopleByName(firstname, lastname))
 		return
 
 	} else if isValidPhoneQuery(c) {
+
 		phonenumber := getPhoneNumber(c)
 		if len(phonenumber) == 0 {
 			c.IndentedJSON(http.StatusBadRequest, gin.H{"message": "phone number missing in the query"})
 			return
 		}
-		fmt.Println("Phone number is ", phonenumber)
 
+		// I have to work on this later, url param has issue with this +
+		phonenumber = "+" + strings.TrimSpace(phonenumber)
+		//TODO: appending +as work around but needs to be fixed.
+		fmt.Println("Phone number is ", phonenumber)
 		c.IndentedJSON(http.StatusOK, models.FindPeopleByPhoneNumber(phonenumber))
 		return
 	}
