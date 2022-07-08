@@ -18,7 +18,7 @@ func main() {
 		simplePool.Submit(test)
 		fmt.Println("All job submitted")
 	}()
-
+	fmt.Println("Waiting for Done signal")
 	<-simplePool.GetAllDone()
 	fmt.Println("Shutting down")
 }
